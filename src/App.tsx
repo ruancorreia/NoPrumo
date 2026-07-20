@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   CloudSun,
+  Download,
   FileText,
   HardHat,
   LayoutDashboard,
@@ -30,12 +31,13 @@ import {
   SlidersHorizontal,
   TrendingUp,
   Upload,
+  UserCheck,
   Users,
   WalletCards,
   X,
 } from 'lucide-react'
-import { alerts, dailyLogs as demoDailyLogs, orders, projects } from './data'
-import type { DailyLog, DailyLogPhoto, Project, Role } from './types'
+import { alerts, attendanceRecords as demoAttendanceRecords, dailyLogs as demoDailyLogs, orders, projects, teamMembers } from './data'
+import type { AttendanceRecord, AttendanceStatus, DailyLog, DailyLogPhoto, Project, Role, TeamMember } from './types'
 
 const currency = new Intl.NumberFormat('pt-BR', {
   style: 'currency', currency: 'BRL', maximumFractionDigits: 0,
@@ -225,7 +227,7 @@ function OrdersPanel({ projectIds }: { projectIds: string[] }) {
   )
 }
 
-function OperationalView({ project, onOpenDiary }: { project: Project; onOpenDiary: () => void }) {
+function OperationalView({ project, onOpenDiary, onOpenAttendance }: { project: Project; onOpenDiary: () => void; onOpenAttendance: () => void }) {
   const actions = [
     { icon: FileText, title: 'Diário de obra', detail: 'Registrar atividades e fotos', tone: 'green' },
     { icon: Users, title: 'Presença', detail: `${project.team} pessoas hoje`, tone: 'blue' },
@@ -237,7 +239,7 @@ function OperationalView({ project, onOpenDiary }: { project: Project; onOpenDia
       <span className="eyebrow">OBRA DE HOJE</span><h1>{project.name}</h1><p>{project.stage} · {project.progress}% concluída</p>
       <div className="mobile-progress"><i style={{ width: `${project.progress}%` }} /></div>
     </section>
-    <div className="action-grid">{actions.map(({ icon: Icon, title, detail, tone }) => <button className="action-card" key={title} onClick={title === 'Diário de obra' ? onOpenDiary : undefined}>
+    <div className="action-grid">{actions.map(({ icon: Icon, title, detail, tone }) => <button className="action-card" key={title} onClick={title === 'Diário de obra' ? onOpenDiary : title === 'Presença' ? onOpenAttendance : undefined}>
       <span className={`action-icon ${tone}`}><Icon size={23} /></span><strong>{title}</strong><small>{detail}</small><ArrowRight size={17} />
     </button>)}</div>
     <div className="mobile-columns"><AlertsPanel projectIds={[project.id]} /><section className="panel today-panel"><div className="panel-head"><div><span className="eyebrow">HOJE</span><h2>Resumo do canteiro</h2></div></div><div className="today-stats"><div><Users /><span><strong>{project.team}</strong> presentes</span></div><div><ClipboardCheck /><span><strong>4 de 6</strong> tarefas</span></div><div><PackageCheck /><span><strong>2</strong> entregas</span></div></div></section></div>
@@ -347,8 +349,118 @@ function DiaryPhotoView({ photo }: { photo: DailyLogPhoto }) {
   </div>
 }
 
-function SiteModule({ projectItems, logs, activeProjectId, onProjectChange, onNewLog }: { projectItems: Project[]; logs: DailyLog[]; activeProjectId: string; onProjectChange: (id: string) => void; onNewLog: (projectId: string) => void }) {
-  const [tab, setTab] = useState<'diary' | 'gallery'>('diary')
+type AttendanceDraft = { status: AttendanceStatus | ''; checkIn: string; checkOut: string; note: string }
+
+function AttendancePanel({ project, members, records, onSave }: { project: Project; members: TeamMember[]; records: AttendanceRecord[]; onSave: (projectId: string, date: string, entries: AttendanceRecord[]) => void }) {
+  const [date, setDate] = useState('2026-07-20')
+  const [query, setQuery] = useState('')
+  const [drafts, setDrafts] = useState<Record<string, AttendanceDraft>>({})
+  const [saved, setSaved] = useState(false)
+  const projectMembers = useMemo(() => members.filter(member => member.projectId === project.id), [members, project.id])
+
+  useEffect(() => {
+    const dayRecords = records.filter(record => record.projectId === project.id && record.date === date)
+    setDrafts(Object.fromEntries(projectMembers.map(member => {
+      const record = dayRecords.find(item => item.memberId === member.id)
+      return [member.id, record
+        ? { status: record.status, checkIn: record.checkIn, checkOut: record.checkOut, note: record.note }
+        : { status: '', checkIn: '', checkOut: '', note: '' }]
+    })))
+  }, [date, project.id, projectMembers, records])
+
+  useEffect(() => {
+    setSaved(false)
+  }, [date, project.id])
+
+  const visibleMembers = projectMembers.filter(member => {
+    const normalized = query.trim().toLocaleLowerCase('pt-BR')
+    return !normalized || [member.name, member.role, member.company ?? '', member.employmentType].some(value => value.toLocaleLowerCase('pt-BR').includes(normalized))
+  })
+  const values = Object.values(drafts)
+  const present = values.filter(value => value.status === 'Presente').length
+  const absent = values.filter(value => value.status === 'Ausente').length
+  const partial = values.filter(value => value.status === 'Meio período').length
+  const pending = Math.max(0, projectMembers.length - present - absent - partial)
+  const attendanceRate = projectMembers.length ? Math.round(((present + partial) / projectMembers.length) * 100) : 0
+
+  function updateDraft(memberId: string, changes: Partial<AttendanceDraft>) {
+    setDrafts(current => ({ ...current, [memberId]: { ...current[memberId], ...changes } }))
+    setSaved(false)
+  }
+
+  function markAllPresent() {
+    setDrafts(current => Object.fromEntries(projectMembers.map(member => [member.id, {
+      status: 'Presente' as AttendanceStatus,
+      checkIn: current[member.id]?.checkIn || '07:00',
+      checkOut: current[member.id]?.checkOut || '17:00',
+      note: current[member.id]?.note || '',
+    }])))
+    setSaved(false)
+  }
+
+  function saveAttendance() {
+    const entries = projectMembers.flatMap(member => {
+      const draft = drafts[member.id]
+      if (!draft?.status) return []
+      return [{ id: `pres-${project.id}-${date}-${member.id}`, projectId: project.id, memberId: member.id, date, status: draft.status, checkIn: draft.checkIn, checkOut: draft.checkOut, note: draft.note }]
+    })
+    onSave(project.id, date, entries)
+    setSaved(true)
+  }
+
+  function exportCsv() {
+    const escapeCell = (value: string) => `"${value.replaceAll('"', '""')}"`
+    const rows = projectMembers.map(member => {
+      const draft = drafts[member.id] ?? { status: '', checkIn: '', checkOut: '', note: '' }
+      return [member.name, member.role, member.employmentType, member.company ?? '', draft.status || 'Não registrado', draft.checkIn, draft.checkOut, draft.note].map(escapeCell).join(';')
+    })
+    const content = ['Nome;Função;Vínculo;Empresa;Situação;Entrada;Saída;Observação', ...rows].join('\n')
+    const url = URL.createObjectURL(new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8' }))
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `presenca-${project.id}-${date}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return <div className="attendance-panel">
+    <section className="attendance-summary">
+      <div><span className="attendance-metric present"><UserCheck size={18} /></span><small>Presentes</small><strong>{present}</strong></div>
+      <div><span className="attendance-metric partial"><Users size={18} /></span><small>Meio período</small><strong>{partial}</strong></div>
+      <div><span className="attendance-metric absent"><X size={18} /></span><small>Ausentes</small><strong>{absent}</strong></div>
+      <div><span className="attendance-metric pending"><AlertTriangle size={18} /></span><small>Não registrados</small><strong>{pending}</strong></div>
+      <div className="attendance-rate"><span><small>Taxa de presença</small><strong>{attendanceRate}%</strong></span><div><i style={{ width: `${attendanceRate}%` }} /></div></div>
+    </section>
+    <div className="attendance-controls">
+      <label className="attendance-date"><CalendarDays size={16} /><input type="date" value={date} onChange={event => { setDate(event.target.value); setSaved(false) }} /></label>
+      <label className="catalog-search"><Search size={16} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar na equipe..." /></label>
+      <button className="secondary-button" onClick={markAllPresent}><CheckCircle2 size={15} /> Marcar todos presentes</button>
+      <button className="secondary-button" onClick={exportCsv}><Download size={15} /> Exportar CSV</button>
+    </div>
+    <div className="attendance-table-wrap">
+      <table className="attendance-table">
+        <thead><tr><th>Colaborador</th><th>Vínculo</th><th>Situação</th><th>Entrada</th><th>Saída</th><th>Observação</th></tr></thead>
+        <tbody>{visibleMembers.map(member => {
+          const draft = drafts[member.id] ?? { status: '', checkIn: '', checkOut: '', note: '' }
+          const initials = member.name.split(' ').slice(0, 2).map(word => word[0]).join('')
+          return <tr key={member.id}>
+            <td><div className="member-cell"><span>{initials}</span><div><strong>{member.name}</strong><small>{member.role}</small></div></div></td>
+            <td><span className={`employment-badge ${member.employmentType === 'Próprio' ? 'own' : 'outsourced'}`}>{member.employmentType}</span>{member.company && <small>{member.company}</small>}</td>
+            <td><select aria-label={`Situação de ${member.name}`} className={`attendance-status-select ${draft.status ? draft.status.toLowerCase().replace(' ', '-') : 'unregistered'}`} value={draft.status} onChange={event => { const status = event.target.value as AttendanceStatus | ''; updateDraft(member.id, { status, checkIn: status === 'Ausente' ? '' : draft.checkIn, checkOut: status === 'Ausente' ? '' : draft.checkOut }) }}><option value="">Não registrado</option><option>Presente</option><option>Meio período</option><option>Ausente</option></select></td>
+            <td><input aria-label={`Entrada de ${member.name}`} className="time-input" type="time" disabled={!draft.status || draft.status === 'Ausente'} value={draft.checkIn} onChange={event => updateDraft(member.id, { checkIn: event.target.value })} /></td>
+            <td><input aria-label={`Saída de ${member.name}`} className="time-input" type="time" disabled={!draft.status || draft.status === 'Ausente'} value={draft.checkOut} onChange={event => updateDraft(member.id, { checkOut: event.target.value })} /></td>
+            <td><input aria-label={`Observação de ${member.name}`} className="attendance-note-input" value={draft.note} onChange={event => updateDraft(member.id, { note: event.target.value })} placeholder="Adicionar observação" /></td>
+          </tr>
+        })}</tbody>
+      </table>
+    </div>
+    <div className="attendance-footer"><span>{saved ? <><CheckCircle2 size={15} /> Presença salva com sucesso</> : `${visibleMembers.length} de ${projectMembers.length} colaboradores exibidos`}</span><button className="primary-button" onClick={saveAttendance}><CheckCircle2 size={16} /> Salvar presença</button></div>
+  </div>
+}
+
+type SiteTab = 'diary' | 'attendance' | 'gallery'
+
+function SiteModule({ projectItems, logs, members, attendance, activeProjectId, activeTab, onTabChange, onProjectChange, onNewLog, onSaveAttendance }: { projectItems: Project[]; logs: DailyLog[]; members: TeamMember[]; attendance: AttendanceRecord[]; activeProjectId: string; activeTab: SiteTab; onTabChange: (tab: SiteTab) => void; onProjectChange: (id: string) => void; onNewLog: (projectId: string) => void; onSaveAttendance: (projectId: string, date: string, entries: AttendanceRecord[]) => void }) {
   const project = projectItems.find(item => item.id === activeProjectId) ?? projectItems[0]
   const projectLogs = useMemo(() => logs
     .filter(log => log.projectId === project?.id)
@@ -377,11 +489,11 @@ function SiteModule({ projectItems, logs, activeProjectId, onProjectChange, onNe
 
     <section className="panel diary-panel">
       <div className="diary-toolbar">
-        <div className="diary-tabs"><button className={tab === 'diary' ? 'active' : ''} onClick={() => setTab('diary')}><BookOpen size={16} /> Diário de obra</button><button className={tab === 'gallery' ? 'active' : ''} onClick={() => setTab('gallery')}><Camera size={16} /> Galeria <b>{photoCount}</b></button></div>
-        <button className="primary-button" onClick={() => onNewLog(project.id)}><Plus size={17} /> Novo registro</button>
+        <div className="diary-tabs"><button className={activeTab === 'diary' ? 'active' : ''} onClick={() => onTabChange('diary')}><BookOpen size={16} /> Diário de obra</button><button className={activeTab === 'attendance' ? 'active' : ''} onClick={() => onTabChange('attendance')}><UserCheck size={16} /> Presença</button><button className={activeTab === 'gallery' ? 'active' : ''} onClick={() => onTabChange('gallery')}><Camera size={16} /> Galeria <b>{photoCount}</b></button></div>
+        {activeTab === 'diary' && <button className="primary-button" onClick={() => onNewLog(project.id)}><Plus size={17} /> Novo registro</button>}
       </div>
 
-      {tab === 'diary' ? <div className="diary-timeline">
+      {activeTab === 'diary' ? <div className="diary-timeline">
         {projectLogs.length ? projectLogs.map((log, index) => <article className="diary-entry" key={log.id}>
           <div className="timeline-marker"><i /><span /></div>
           <div className="diary-entry-card">
@@ -398,9 +510,9 @@ function SiteModule({ projectItems, logs, activeProjectId, onProjectChange, onNe
             {log.photos.length > 0 && <div className="diary-photos">{log.photos.map(photo => <DiaryPhotoView photo={photo} key={photo.id} />)}</div>}
           </div>
         </article>) : <div className="catalog-empty"><BookOpen size={27} /><strong>O diário ainda está em branco</strong><span>Faça o primeiro registro desta obra.</span><button onClick={() => onNewLog(project.id)}>Criar primeiro registro</button></div>}
-      </div> : <div className="gallery-grid">
+      </div> : activeTab === 'gallery' ? <div className="gallery-grid">
         {allPhotos.length ? allPhotos.map(({ photo, log }) => <article className="gallery-item" key={photo.id}><DiaryPhotoView photo={photo} /><div><strong>{photo.name}</strong><span>{new Date(`${log.date}T12:00:00`).toLocaleDateString('pt-BR')} · {log.author}</span></div></article>) : <div className="catalog-empty"><Camera size={27} /><strong>Nenhuma foto adicionada</strong><span>As fotos dos registros aparecerão aqui.</span></div>}
-      </div>}
+      </div> : <AttendancePanel project={project} members={members} records={attendance} onSave={onSaveAttendance} />}
     </section>
   </div>
 }
@@ -526,6 +638,7 @@ function App() {
   const [roleOpen, setRoleOpen] = useState(false)
   const [showNewProject, setShowNewProject] = useState(false)
   const [newDailyLogProjectId, setNewDailyLogProjectId] = useState<string | null>(null)
+  const [siteTab, setSiteTab] = useState<SiteTab>('diary')
   const [projectList, setProjectList] = useState<Project[]>(() => {
     try {
       const saved = localStorage.getItem('noprumo.projects')
@@ -544,6 +657,15 @@ function App() {
       return demoDailyLogs
     }
   })
+  const [attendanceList, setAttendanceList] = useState<AttendanceRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('noprumo.attendance')
+      const parsed = saved ? JSON.parse(saved) as AttendanceRecord[] : null
+      return parsed?.length ? parsed : demoAttendanceRecords
+    } catch {
+      return demoAttendanceRecords
+    }
+  })
 
   useEffect(() => {
     localStorage.setItem('noprumo.projects', JSON.stringify(projectList))
@@ -556,6 +678,10 @@ function App() {
       // The UI keeps the entry in memory if browser storage is full.
     }
   }, [dailyLogList])
+
+  useEffect(() => {
+    localStorage.setItem('noprumo.attendance', JSON.stringify(attendanceList))
+  }, [attendanceList])
 
   const selectedProjects = useMemo(() => {
     if (role === 'foreman' || role === 'client') return projectList.length ? [projectList[0]] : []
@@ -599,6 +725,13 @@ function App() {
     setNewDailyLogProjectId(null)
   }
 
+  function saveAttendance(projectId: string, date: string, entries: AttendanceRecord[]) {
+    setAttendanceList(current => [
+      ...current.filter(record => !(record.projectId === projectId && record.date === date)),
+      ...entries,
+    ])
+  }
+
   return <div className="app-shell">
     <Sidebar open={menuOpen} close={() => setMenuOpen(false)} active={active} setActive={setActive} role={role} projectCount={projectList.length} />
     <main>
@@ -627,10 +760,10 @@ function App() {
           </div>}
         </div>
 
-        {isOperationalHome && projectList.length ? <OperationalView project={projectList[0]} onOpenDiary={() => setActive('Canteiro')} /> : active === 'Obras' && !isOperational
+        {isOperationalHome && projectList.length ? <OperationalView project={projectList[0]} onOpenDiary={() => { setSiteTab('diary'); setActive('Canteiro') }} onOpenAttendance={() => { setSiteTab('attendance'); setActive('Canteiro') }} /> : active === 'Obras' && !isOperational
           ? <ProjectsModule items={role === 'client' ? selectedProjects : projectList} onNew={() => setShowNewProject(true)} onOpen={openProject} canCreate={role === 'admin'} />
           : active === 'Canteiro'
-            ? <SiteModule projectItems={siteProjectItems} logs={dailyLogList} activeProjectId={siteActiveProjectId} onProjectChange={setSelectedProject} onNewLog={setNewDailyLogProjectId} />
+            ? <SiteModule projectItems={siteProjectItems} logs={dailyLogList} members={teamMembers} attendance={attendanceList} activeProjectId={siteActiveProjectId} activeTab={siteTab} onTabChange={setSiteTab} onProjectChange={setSelectedProject} onNewLog={setNewDailyLogProjectId} onSaveAttendance={saveAttendance} />
           : <>
           {active !== 'Visão geral' && <div className="module-banner"><span><Boxes size={20} /></span><div><strong>Módulo {active}</strong><small>Fundação pronta para a próxima etapa de implementação.</small></div><button onClick={() => setActive('Visão geral')}>Voltar à visão geral</button></div>}
           {role !== 'client' && <section className="kpi-grid">

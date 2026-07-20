@@ -1,4 +1,4 @@
-import type { AlertItem, DailyLog, Order, Project } from './types'
+import type { AlertItem, AttendanceRecord, DailyLog, Order, Project, TeamMember } from './types'
 
 export const projects: Project[] = [
   {
@@ -142,4 +142,38 @@ export const dailyLogs: DailyLog[] = [
     createdAt: '2026-07-20T16:58:00-03:00',
     photos: [{ id: 'foto-v1', name: 'Porcelanato da suíte', theme: 'finishing' }],
   },
+]
+
+export const teamMembers: TeamMember[] = [
+  { id: 'eq-01', projectId: 'residencial-aurora', name: 'João Ferreira', role: 'Pedreiro', employmentType: 'Próprio' },
+  { id: 'eq-02', projectId: 'residencial-aurora', name: 'Lucas Almeida', role: 'Servente', employmentType: 'Próprio' },
+  { id: 'eq-03', projectId: 'residencial-aurora', name: 'Carlos Nascimento', role: 'Eletricista', employmentType: 'Terceirizado', company: 'Lumen Elétrica' },
+  { id: 'eq-04', projectId: 'residencial-aurora', name: 'Rafael Santos', role: 'Pedreiro', employmentType: 'Próprio' },
+  { id: 'eq-05', projectId: 'residencial-aurora', name: 'Diego Martins', role: 'Encanador', employmentType: 'Terceirizado', company: 'Hidrocenter' },
+  { id: 'eq-06', projectId: 'residencial-aurora', name: 'Mateus Ribeiro', role: 'Servente', employmentType: 'Próprio' },
+  { id: 'eq-07', projectId: 'residencial-aurora', name: 'Anderson Lima', role: 'Carpinteiro', employmentType: 'Terceirizado', company: 'Forma Certa' },
+  { id: 'eq-08', projectId: 'residencial-aurora', name: 'Pedro Henrique', role: 'Armador', employmentType: 'Próprio' },
+  { id: 'eq-09', projectId: 'vila-serena', name: 'Bruno Costa', role: 'Azulejista', employmentType: 'Terceirizado', company: 'Revest Lar' },
+  { id: 'eq-10', projectId: 'vila-serena', name: 'Felipe Rocha', role: 'Pintor', employmentType: 'Próprio' },
+  { id: 'eq-11', projectId: 'vila-serena', name: 'Gustavo Souza', role: 'Marceneiro', employmentType: 'Terceirizado', company: 'Madero Planejados' },
+  { id: 'eq-12', projectId: 'vila-serena', name: 'Leandro Alves', role: 'Servente', employmentType: 'Próprio' },
+  { id: 'eq-13', projectId: 'parque-das-flores', name: 'Marcos Vinícius', role: 'Armador', employmentType: 'Próprio' },
+  { id: 'eq-14', projectId: 'parque-das-flores', name: 'Caio Barros', role: 'Carpinteiro', employmentType: 'Próprio' },
+  { id: 'eq-15', projectId: 'parque-das-flores', name: 'Samuel Reis', role: 'Servente', employmentType: 'Terceirizado', company: 'Base Forte' },
+  { id: 'eq-16', projectId: 'casa-horizonte', name: 'Renato Melo', role: 'Eletricista', employmentType: 'Terceirizado', company: 'Lumen Elétrica' },
+  { id: 'eq-17', projectId: 'casa-horizonte', name: 'Igor Moreira', role: 'Encanador', employmentType: 'Próprio' },
+  { id: 'eq-18', projectId: 'casa-horizonte', name: 'Vitor Gomes', role: 'Pedreiro', employmentType: 'Próprio' },
+]
+
+export const attendanceRecords: AttendanceRecord[] = [
+  { id: 'pres-01', projectId: 'residencial-aurora', memberId: 'eq-01', date: '2026-07-20', status: 'Presente', checkIn: '07:02', checkOut: '17:05', note: '' },
+  { id: 'pres-02', projectId: 'residencial-aurora', memberId: 'eq-02', date: '2026-07-20', status: 'Presente', checkIn: '06:58', checkOut: '17:01', note: '' },
+  { id: 'pres-03', projectId: 'residencial-aurora', memberId: 'eq-03', date: '2026-07-20', status: 'Meio período', checkIn: '07:15', checkOut: '12:10', note: 'Atendimento em outra obra no período da tarde.' },
+  { id: 'pres-04', projectId: 'residencial-aurora', memberId: 'eq-04', date: '2026-07-20', status: 'Presente', checkIn: '07:01', checkOut: '17:08', note: '' },
+  { id: 'pres-05', projectId: 'residencial-aurora', memberId: 'eq-05', date: '2026-07-20', status: 'Ausente', checkIn: '', checkOut: '', note: 'Ausência comunicada pelo prestador.' },
+  { id: 'pres-06', projectId: 'residencial-aurora', memberId: 'eq-06', date: '2026-07-20', status: 'Presente', checkIn: '07:06', checkOut: '17:00', note: '' },
+  { id: 'pres-07', projectId: 'residencial-aurora', memberId: 'eq-07', date: '2026-07-20', status: 'Presente', checkIn: '07:10', checkOut: '17:12', note: '' },
+  { id: 'pres-08', projectId: 'residencial-aurora', memberId: 'eq-08', date: '2026-07-20', status: 'Presente', checkIn: '06:55', checkOut: '16:58', note: '' },
+  { id: 'pres-09', projectId: 'vila-serena', memberId: 'eq-09', date: '2026-07-20', status: 'Presente', checkIn: '07:20', checkOut: '17:10', note: '' },
+  { id: 'pres-10', projectId: 'vila-serena', memberId: 'eq-10', date: '2026-07-20', status: 'Presente', checkIn: '07:05', checkOut: '17:02', note: '' },
 ]

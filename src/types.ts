@@ -62,3 +62,25 @@ export interface DailyLog {
   createdAt: string
   photos: DailyLogPhoto[]
 }
+
+export interface TeamMember {
+  id: string
+  projectId: string
+  name: string
+  role: string
+  employmentType: 'Próprio' | 'Terceirizado'
+  company?: string
+}
+
+export type AttendanceStatus = 'Presente' | 'Ausente' | 'Meio período'
+
+export interface AttendanceRecord {
+  id: string
+  projectId: string
+  memberId: string
+  date: string
+  status: AttendanceStatus
+  checkIn: string
+  checkOut: string
+  note: string
+}

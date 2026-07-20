@@ -17,8 +17,10 @@ Esta primeira entrega materializa o Centro de Controle Executivo como uma aplica
 - cadastro de nova obra integrado ao dashboard e persistido no navegador.
 - Diário de Obra por projeto, com linha do tempo, clima, equipe, atividades e ocorrências;
 - galeria e upload de fotos com compressão automática antes da persistência.
+- gestão diária de presença por obra, com horários, vínculo e observações;
+- marcação coletiva da equipe e exportação do relatório de presença em CSV.
 
-Os dados iniciais demonstrativos ficam em `src/data.ts`. Novas obras e registros do diário já são persistidos em `localStorage`; autenticação, banco de dados e integrações serão adicionados nas próximas etapas.
+Os dados iniciais demonstrativos ficam em `src/data.ts`. Novas obras, registros do diário e folhas de presença já são persistidos em `localStorage`; autenticação, banco de dados e integrações serão adicionados nas próximas etapas.
 
 ## Executar localmente
 
