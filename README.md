@@ -13,8 +13,12 @@ Esta primeira entrega materializa o Centro de Controle Executivo como uma aplica
 - rastreabilidade visual dos pedidos recentes;
 - simulação de RBAC por perfil (Sede, Engenheiro, Encarregado e Cliente);
 - experiência operacional adaptada ao celular para o Encarregado.
+- módulo de Obras com indicadores, busca e filtro por situação;
+- cadastro de nova obra integrado ao dashboard e persistido no navegador.
+- Diário de Obra por projeto, com linha do tempo, clima, equipe, atividades e ocorrências;
+- galeria e upload de fotos com compressão automática antes da persistência.
 
-Os dados são demonstrativos e ficam em `src/data.ts`. Autenticação, persistência e integrações serão adicionadas nas próximas etapas.
+Os dados iniciais demonstrativos ficam em `src/data.ts`. Novas obras e registros do diário já são persistidos em `localStorage`; autenticação, banco de dados e integrações serão adicionados nas próximas etapas.
 
 ## Executar localmente
 

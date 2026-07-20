@@ -6,6 +6,9 @@ export interface Project {
   id: string
   name: string
   location: string
+  manager: string
+  startDate: string
+  endDate: string
   stage: string
   progress: number
   scheduleProgress: number
@@ -36,4 +39,26 @@ export interface Order {
   value: number
   status: 'Pendente' | 'Cotado' | 'Aprovado' | 'Em trânsito' | 'Recebido'
   date: string
+}
+
+export interface DailyLogPhoto {
+  id: string
+  name: string
+  dataUrl?: string
+  theme?: 'masonry' | 'structure' | 'installation' | 'finishing'
+}
+
+export interface DailyLog {
+  id: string
+  projectId: string
+  date: string
+  weather: 'Ensolarado' | 'Parcialmente nublado' | 'Chuvoso'
+  temperature: number
+  teamCount: number
+  activities: string[]
+  notes: string
+  occurrences: string
+  author: string
+  createdAt: string
+  photos: DailyLogPhoto[]
 }
