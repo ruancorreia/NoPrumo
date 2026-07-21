@@ -4,5 +4,6 @@ dist/
 .env.*
 !.env.example
 *.log
+api/data/*.json
 *.tsbuildinfo
 .DS_Store

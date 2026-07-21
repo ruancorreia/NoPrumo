@@ -19,15 +19,12 @@ import {
   Download,
   FileText,
   HardHat,
-  LayoutDashboard,
   MapPin,
   Menu,
   MoreHorizontal,
   PackageCheck,
   Plus,
   Search,
-  Settings,
-  ShieldCheck,
   SlidersHorizontal,
   TrendingUp,
   Upload,
@@ -37,6 +34,12 @@ import {
   X,
 } from 'lucide-react'
 import { alerts, attendanceRecords as demoAttendanceRecords, dailyLogs as demoDailyLogs, orders, projects, teamMembers } from './data'
+import { Logo } from './components/layout/Logo'
+import { Sidebar } from './components/layout/Sidebar'
+import { useAuth } from './auth/AuthContext'
+import { loadCollection, saveCollection, storageKeys } from './services/storage'
+import { createProjectRequest, listProjectsRequest } from './services/projects'
+import { createDailyLogRequest, listAttendanceRequest, listDailyLogsRequest, saveAttendanceRequest } from './services/site'
 import type { AttendanceRecord, AttendanceStatus, DailyLog, DailyLogPhoto, Project, Role, TeamMember } from './types'
 
 const currency = new Intl.NumberFormat('pt-BR', {
@@ -52,58 +55,6 @@ const roles: Record<Role, { label: string; detail: string }> = {
   engineer: { label: 'Engenheiro', detail: '4 obras vinculadas' },
   foreman: { label: 'Encarregado', detail: 'Residencial Aurora' },
   client: { label: 'Dono da obra', detail: 'Acesso de consulta' },
-}
-
-const navItems = [
-  { label: 'Visão geral', icon: LayoutDashboard },
-  { label: 'Obras', icon: Building2, count: 4 },
-  { label: 'Canteiro', icon: HardHat },
-  { label: 'Suprimentos', icon: Boxes, count: 3 },
-  { label: 'Financeiro', icon: WalletCards },
-  { label: 'Planejamento', icon: CalendarDays },
-  { label: 'Documentos', icon: FileText },
-]
-
-function Logo() {
-  return (
-    <div className="logo" aria-label="NoPrumo">
-      <span className="logo-mark"><span /></span>
-      <span>No<span>Prumo</span></span>
-    </div>
-  )
-}
-
-function Sidebar({ open, close, active, setActive, role, projectCount }: { open: boolean; close: () => void; active: string; setActive: (item: string) => void; role: Role; projectCount: number }) {
-  const hidden = role === 'foreman' ? ['Financeiro'] : role === 'client' ? ['Canteiro', 'Suprimentos'] : []
-  return (
-    <>
-      {open && <button className="sidebar-overlay" onClick={close} aria-label="Fechar menu" />}
-      <aside className={`sidebar ${open ? 'is-open' : ''}`}>
-        <div className="sidebar-head"><Logo /><button className="mobile-close" onClick={close}><X size={20} /></button></div>
-        <nav>
-          <p className="nav-eyebrow">GESTÃO</p>
-          {navItems.filter(item => !hidden.includes(item.label)).map(({ label, icon: Icon, count: defaultCount }) => {
-            const count = label === 'Obras' ? projectCount : defaultCount
-            return (
-            <button key={label} className={`nav-item ${active === label ? 'active' : ''}`} onClick={() => { setActive(label); close() }}>
-              <Icon size={19} strokeWidth={1.8} />
-              <span>{label}</span>
-              {count && <b>{count}</b>}
-            </button>
-          )})}
-        </nav>
-        <div className="sidebar-bottom">
-          <button className="nav-item"><Users size={19} /><span>Equipe</span></button>
-          <button className="nav-item"><Settings size={19} /><span>Configurações</span></button>
-          <div className="help-card">
-            <span><ShieldCheck size={18} /></span>
-            <strong>Ambiente protegido</strong>
-            <small>Dados segmentados por obra</small>
-          </div>
-        </div>
-      </aside>
-    </>
-  )
 }
 
 function KpiCard({ label, value, detail, trend, icon: Icon, tone = 'green' }: { label: string; value: string; detail: string; trend?: 'up' | 'down'; icon: typeof TrendingUp; tone?: string }) {
@@ -351,7 +302,7 @@ function DiaryPhotoView({ photo }: { photo: DailyLogPhoto }) {
 
 type AttendanceDraft = { status: AttendanceStatus | ''; checkIn: string; checkOut: string; note: string }
 
-function AttendancePanel({ project, members, records, onSave }: { project: Project; members: TeamMember[]; records: AttendanceRecord[]; onSave: (projectId: string, date: string, entries: AttendanceRecord[]) => void }) {
+function AttendancePanel({ project, members, records, onSave }: { project: Project; members: TeamMember[]; records: AttendanceRecord[]; onSave: (projectId: string, date: string, entries: AttendanceRecord[]) => Promise<boolean> }) {
   const [date, setDate] = useState('2026-07-20')
   const [query, setQuery] = useState('')
   const [drafts, setDrafts] = useState<Record<string, AttendanceDraft>>({})
@@ -398,14 +349,14 @@ function AttendancePanel({ project, members, records, onSave }: { project: Proje
     setSaved(false)
   }
 
-  function saveAttendance() {
+  async function saveAttendance() {
     const entries = projectMembers.flatMap(member => {
       const draft = drafts[member.id]
       if (!draft?.status) return []
       return [{ id: `pres-${project.id}-${date}-${member.id}`, projectId: project.id, memberId: member.id, date, status: draft.status, checkIn: draft.checkIn, checkOut: draft.checkOut, note: draft.note }]
     })
-    onSave(project.id, date, entries)
-    setSaved(true)
+    const didSave = await onSave(project.id, date, entries)
+    setSaved(didSave)
   }
 
   function exportCsv() {
@@ -460,7 +411,7 @@ function AttendancePanel({ project, members, records, onSave }: { project: Proje
 
 type SiteTab = 'diary' | 'attendance' | 'gallery'
 
-function SiteModule({ projectItems, logs, members, attendance, activeProjectId, activeTab, onTabChange, onProjectChange, onNewLog, onSaveAttendance }: { projectItems: Project[]; logs: DailyLog[]; members: TeamMember[]; attendance: AttendanceRecord[]; activeProjectId: string; activeTab: SiteTab; onTabChange: (tab: SiteTab) => void; onProjectChange: (id: string) => void; onNewLog: (projectId: string) => void; onSaveAttendance: (projectId: string, date: string, entries: AttendanceRecord[]) => void }) {
+function SiteModule({ projectItems, logs, members, attendance, activeProjectId, activeTab, onTabChange, onProjectChange, onNewLog, onSaveAttendance }: { projectItems: Project[]; logs: DailyLog[]; members: TeamMember[]; attendance: AttendanceRecord[]; activeProjectId: string; activeTab: SiteTab; onTabChange: (tab: SiteTab) => void; onProjectChange: (id: string) => void; onNewLog: (projectId: string) => void; onSaveAttendance: (projectId: string, date: string, entries: AttendanceRecord[]) => Promise<boolean> }) {
   const project = projectItems.find(item => item.id === activeProjectId) ?? projectItems[0]
   const projectLogs = useMemo(() => logs
     .filter(log => log.projectId === project?.id)
@@ -517,7 +468,7 @@ function SiteModule({ projectItems, logs, members, attendance, activeProjectId, 
   </div>
 }
 
-function NewDailyLogModal({ project, onClose, onSave }: { project: Project; onClose: () => void; onSave: (log: DailyLog) => void }) {
+function NewDailyLogModal({ project, onClose, onSave }: { project: Project; onClose: () => void; onSave: (log: DailyLog) => Promise<boolean> }) {
   const [date, setDate] = useState('2026-07-20')
   const [weather, setWeather] = useState<DailyLog['weather']>('Ensolarado')
   const [temperature, setTemperature] = useState('25')
@@ -527,6 +478,7 @@ function NewDailyLogModal({ project, onClose, onSave }: { project: Project; onCl
   const [occurrences, setOccurrences] = useState('Nenhuma ocorrência de segurança registrada.')
   const [photos, setPhotos] = useState<DailyLogPhoto[]>([])
   const [processingPhotos, setProcessingPhotos] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   async function addPhotos(files: FileList | null) {
     if (!files?.length) return
@@ -538,11 +490,12 @@ function NewDailyLogModal({ project, onClose, onSave }: { project: Project; onCl
     setProcessingPhotos(false)
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const activityList = activities.split('\n').map(item => item.trim()).filter(Boolean)
     if (!activityList.length) return
-    onSave({
+    setSubmitting(true)
+    await onSave({
       id: `rdo-${Date.now()}`,
       projectId: project.id,
       date,
@@ -556,6 +509,7 @@ function NewDailyLogModal({ project, onClose, onSave }: { project: Project; onCl
       createdAt: new Date().toISOString(),
       photos,
     })
+    setSubmitting(false)
   }
 
   return <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -572,7 +526,7 @@ function NewDailyLogModal({ project, onClose, onSave }: { project: Project; onCl
           <label className="form-field full"><span>Ocorrências</span><textarea rows={2} value={occurrences} onChange={event => setOccurrences(event.target.value)} placeholder="Atrasos, acidentes, visitas técnicas ou impedimentos..." /></label>
           <div className="form-field full"><span>Fotos do canteiro <em>até 4 imagens</em></span><div className="photo-upload-grid">{photos.map(photo => <div className="upload-preview" key={photo.id}><img src={photo.dataUrl} alt={photo.name} /><button type="button" onClick={() => setPhotos(current => current.filter(item => item.id !== photo.id))} aria-label={`Remover ${photo.name}`}><X size={14} /></button></div>)}{photos.length < 4 && <label className="photo-upload"><input type="file" accept="image/*" multiple onChange={event => addPhotos(event.target.files)} /><Upload size={20} /><strong>{processingPhotos ? 'Processando...' : 'Adicionar fotos'}</strong><small>JPG ou PNG</small></label>}</div></div>
         </div>
-        <div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button type="submit" className="primary-button" disabled={processingPhotos}><CheckCircle2 size={17} /> Salvar diário</button></div>
+        <div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button type="submit" className="primary-button" disabled={processingPhotos || submitting}><CheckCircle2 size={17} /> {submitting ? 'Salvando...' : 'Salvar diário'}</button></div>
       </form>
     </section>
   </div>
@@ -617,7 +571,7 @@ function NewProjectModal({ onClose, onSave }: { onClose: () => void; onSave: (pr
       <form onSubmit={submit}>
         <div className="form-grid">
           <label className="form-field full"><span>Nome da obra</span><input required autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="Ex.: Residencial Primavera" /></label>
-          <label className="form-field"><span>Cidade / UF</span><input required value={location} onChange={event => setLocation(event.target.value)} placeholder="Campinas, SP" /></label>
+          <label className="form-field"><span>Cidade / UF</span><input required value={location} onChange={event => setLocation(event.target.value)} placeholder="Niterói, RJ" /></label>
           <label className="form-field"><span>Responsável técnico</span><input required value={manager} onChange={event => setManager(event.target.value)} placeholder="Nome completo" /></label>
           <label className="form-field"><span>Data de início</span><input required type="date" value={startDate} onChange={event => setStartDate(event.target.value)} /></label>
           <label className="form-field"><span>Previsão de entrega</span><input required type="date" min={startDate} value={endDate} onChange={event => setEndDate(event.target.value)} /></label>
@@ -631,7 +585,8 @@ function NewProjectModal({ onClose, onSave }: { onClose: () => void; onSave: (pr
 }
 
 function App() {
-  const [role, setRole] = useState<Role>('admin')
+  const { user, token, logout } = useAuth()
+  const [role, setRole] = useState<Role>(user?.role ?? 'admin')
   const [selectedProject, setSelectedProject] = useState('all')
   const [active, setActive] = useState('Visão geral')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -639,48 +594,42 @@ function App() {
   const [showNewProject, setShowNewProject] = useState(false)
   const [newDailyLogProjectId, setNewDailyLogProjectId] = useState<string | null>(null)
   const [siteTab, setSiteTab] = useState<SiteTab>('diary')
-  const [projectList, setProjectList] = useState<Project[]>(() => {
-    try {
-      const saved = localStorage.getItem('noprumo.projects')
-      const parsed = saved ? JSON.parse(saved) as Project[] : null
-      return parsed?.length ? parsed : projects
-    } catch {
-      return projects
-    }
-  })
-  const [dailyLogList, setDailyLogList] = useState<DailyLog[]>(() => {
-    try {
-      const saved = localStorage.getItem('noprumo.dailyLogs')
-      const parsed = saved ? JSON.parse(saved) as DailyLog[] : null
-      return parsed?.length ? parsed : demoDailyLogs
-    } catch {
-      return demoDailyLogs
-    }
-  })
-  const [attendanceList, setAttendanceList] = useState<AttendanceRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem('noprumo.attendance')
-      const parsed = saved ? JSON.parse(saved) as AttendanceRecord[] : null
-      return parsed?.length ? parsed : demoAttendanceRecords
-    } catch {
-      return demoAttendanceRecords
-    }
-  })
+  const [projectApiError, setProjectApiError] = useState('')
+  const [projectList, setProjectList] = useState<Project[]>(() => loadCollection(storageKeys.projects, projects))
+  const [dailyLogList, setDailyLogList] = useState<DailyLog[]>(() => loadCollection(storageKeys.dailyLogs, demoDailyLogs))
+  const [attendanceList, setAttendanceList] = useState<AttendanceRecord[]>(() => loadCollection(storageKeys.attendance, demoAttendanceRecords))
 
   useEffect(() => {
-    localStorage.setItem('noprumo.projects', JSON.stringify(projectList))
+    if (!token) return
+    listProjectsRequest(token)
+      .then(items => {
+        setProjectList(items)
+        setProjectApiError('')
+      })
+      .catch(error => setProjectApiError(error instanceof Error ? error.message : 'Não foi possível sincronizar as obras.'))
+  }, [token])
+
+  useEffect(() => {
+    if (!token) return
+    Promise.all([listDailyLogsRequest(token), listAttendanceRequest(token)])
+      .then(([logs, attendance]) => {
+        setDailyLogList(logs)
+        setAttendanceList(attendance)
+        setProjectApiError('')
+      })
+      .catch(error => setProjectApiError(error instanceof Error ? error.message : 'Não foi possível sincronizar o canteiro.'))
+  }, [token])
+
+  useEffect(() => {
+    saveCollection(storageKeys.projects, projectList)
   }, [projectList])
 
   useEffect(() => {
-    try {
-      localStorage.setItem('noprumo.dailyLogs', JSON.stringify(dailyLogList))
-    } catch {
-      // The UI keeps the entry in memory if browser storage is full.
-    }
+    saveCollection(storageKeys.dailyLogs, dailyLogList)
   }, [dailyLogList])
 
   useEffect(() => {
-    localStorage.setItem('noprumo.attendance', JSON.stringify(attendanceList))
+    saveCollection(storageKeys.attendance, attendanceList)
   }, [attendanceList])
 
   const selectedProjects = useMemo(() => {
@@ -710,9 +659,16 @@ function App() {
     : active === 'Obras' ? 'Controle seu portfólio e acompanhe cada projeto.'
       : active === 'Canteiro' ? 'Diário, equipe e evidências do avanço físico.' : 'Acompanhe o desempenho das suas obras em um só lugar.'
 
-  function saveProject(project: Project) {
-    setProjectList(current => [project, ...current])
-    setShowNewProject(false)
+  async function saveProject(project: Project) {
+    if (!token) return
+    try {
+      const savedProject = await createProjectRequest(token, project)
+      setProjectList(current => [savedProject, ...current])
+      setProjectApiError('')
+      setShowNewProject(false)
+    } catch (error) {
+      setProjectApiError(error instanceof Error ? error.message : 'Não foi possível cadastrar a obra.')
+    }
   }
 
   function openProject(project: Project) {
@@ -720,16 +676,34 @@ function App() {
     setActive('Visão geral')
   }
 
-  function saveDailyLog(log: DailyLog) {
-    setDailyLogList(current => [log, ...current])
-    setNewDailyLogProjectId(null)
+  async function saveDailyLog(log: DailyLog): Promise<boolean> {
+    if (!token) return false
+    try {
+      const savedLog = await createDailyLogRequest(token, log)
+      setDailyLogList(current => [savedLog, ...current])
+      setProjectApiError('')
+      setNewDailyLogProjectId(null)
+      return true
+    } catch (error) {
+      setProjectApiError(error instanceof Error ? error.message : 'Não foi possível salvar o diário.')
+      return false
+    }
   }
 
-  function saveAttendance(projectId: string, date: string, entries: AttendanceRecord[]) {
-    setAttendanceList(current => [
-      ...current.filter(record => !(record.projectId === projectId && record.date === date)),
-      ...entries,
-    ])
+  async function saveAttendance(projectId: string, date: string, entries: AttendanceRecord[]): Promise<boolean> {
+    if (!token) return false
+    try {
+      const savedEntries = await saveAttendanceRequest(token, projectId, date, entries)
+      setAttendanceList(current => [
+        ...current.filter(record => !(record.projectId === projectId && record.date === date)),
+        ...savedEntries,
+      ])
+      setProjectApiError('')
+      return true
+    } catch (error) {
+      setProjectApiError(error instanceof Error ? error.message : 'Não foi possível salvar a presença.')
+      return false
+    }
   }
 
   return <div className="app-shell">
@@ -743,14 +717,15 @@ function App() {
           <button className="icon-button notification"><Bell size={20} /><i /></button>
           <div className="profile-wrap">
             <button className="profile-button" onClick={() => setRoleOpen(value => !value)}>
-              <span className="avatar">RC</span><span className="profile-copy"><strong>Ruan Correia</strong><small>{roles[role].label}</small></span><ChevronDown size={16} />
+              <span className="avatar">RC</span><span className="profile-copy"><strong>{user?.name ?? 'Usuário'}</strong><small>{roles[role].label}</small></span><ChevronDown size={16} />
             </button>
-            {roleOpen && <div className="role-menu"><span>Visualizar como</span>{(Object.keys(roles) as Role[]).map(key => <button key={key} className={role === key ? 'selected' : ''} onClick={() => { setRole(key); setRoleOpen(false); setSelectedProject('all') }}><strong>{roles[key].label}</strong><small>{roles[key].detail}</small></button>)}</div>}
+            {roleOpen && <div className="role-menu"><span>Visualizar como</span>{(Object.keys(roles) as Role[]).map(key => <button key={key} className={role === key ? 'selected' : ''} onClick={() => { setRole(key); setRoleOpen(false); setSelectedProject('all') }}><strong>{roles[key].label}</strong><small>{roles[key].detail}</small></button>)}<button className="logout-button" onClick={logout}><strong>Sair da conta</strong><small>Encerrar esta sessão</small></button></div>}
           </div>
         </div>
       </header>
 
       <div className="content">
+        {projectApiError && <div className="api-error" role="alert"><AlertTriangle size={17} /><span>{projectApiError}</span><button onClick={() => setProjectApiError('')}>Fechar</button></div>}
         <div className="page-heading">
           <div><span className="eyebrow">SEGUNDA, 20 DE JULHO</span><h1>{pageTitle}</h1><p>{pageSubtitle}</p></div>
           {!isOperational && role !== 'client' && active === 'Visão geral' && <div className="heading-actions">

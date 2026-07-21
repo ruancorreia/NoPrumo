@@ -20,7 +20,7 @@ Esta primeira entrega materializa o Centro de Controle Executivo como uma aplica
 - gestão diária de presença por obra, com horários, vínculo e observações;
 - marcação coletiva da equipe e exportação do relatório de presença em CSV.
 
-Os dados iniciais demonstrativos ficam em `src/data.ts`. Novas obras, registros do diário e folhas de presença já são persistidos em `localStorage`; autenticação, banco de dados e integrações serão adicionados nas próximas etapas.
+Os dados iniciais demonstrativos ficam em `src/data.ts`. Obras, diário e presença passam pela API local, com isolamento por organização e persistência em arquivos dentro de `api/data`. O `localStorage` permanece apenas como cache de contingência da interface.
 
 ## Executar localmente
 
@@ -29,6 +29,31 @@ Requer Node.js 20 ou superior.
 ```bash
 npm install
 npm run dev
+```
+
+O comando inicia o frontend em `http://127.0.0.1:5173` e a API local em `http://127.0.0.1:3001`.
+
+Credenciais do ambiente demonstrativo:
+
+```text
+E-mail: admin@noprumo.local
+Senha:  noprumo123
+```
+
+O token da sessão é mantido em `sessionStorage` e expira após oito horas.
+
+Endpoints disponíveis neste recorte:
+
+```text
+GET  /api/health
+POST /api/auth/login
+GET  /api/auth/me
+GET  /api/projects
+POST /api/projects
+GET  /api/daily-logs
+POST /api/projects/:projectId/daily-logs
+GET  /api/attendance
+PUT  /api/projects/:projectId/attendance/:date
 ```
 
 Validação de produção:

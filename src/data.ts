@@ -4,7 +4,7 @@ export const projects: Project[] = [
   {
     id: 'residencial-aurora',
     name: 'Residencial Aurora',
-    location: 'Campinas, SP',
+    location: 'Niterói, RJ',
     manager: 'Marcos Oliveira',
     startDate: '2026-02-03',
     endDate: '2026-11-28',
@@ -23,7 +23,7 @@ export const projects: Project[] = [
   {
     id: 'vila-serena',
     name: 'Vila Serena',
-    location: 'Valinhos, SP',
+    location: 'Rio de Janeiro, RJ',
     manager: 'Camila Torres',
     startDate: '2025-10-14',
     endDate: '2026-08-30',
@@ -42,7 +42,7 @@ export const projects: Project[] = [
   {
     id: 'parque-das-flores',
     name: 'Parque das Flores',
-    location: 'Jundiaí, SP',
+    location: 'Niterói, RJ',
     manager: 'André Martins',
     startDate: '2026-04-06',
     endDate: '2027-02-19',
@@ -61,7 +61,7 @@ export const projects: Project[] = [
   {
     id: 'casa-horizonte',
     name: 'Casa Horizonte',
-    location: 'Indaiatuba, SP',
+    location: 'Rio de Janeiro, RJ',
     manager: 'Paulo Mendes',
     startDate: '2026-01-19',
     endDate: '2026-10-16',
@@ -86,7 +86,7 @@ export const alerts: AlertItem[] = [
 ]
 
 export const orders: Order[] = [
-  { id: '#1052', projectId: 'residencial-aurora', item: 'Aço CA-50 · 780 kg', supplier: 'Aços Campinas', value: 6170, status: 'Cotado', date: '20 jul' },
+  { id: '#1052', projectId: 'residencial-aurora', item: 'Aço CA-50 · 780 kg', supplier: 'Aços Guanabara', value: 6170, status: 'Cotado', date: '20 jul' },
   { id: '#1051', projectId: 'vila-serena', item: 'Porcelanato · 86 m²', supplier: 'Revest Lar', value: 9870, status: 'Aprovado', date: '20 jul' },
   { id: '#1050', projectId: 'casa-horizonte', item: 'Tubos e conexões', supplier: 'Hidrocenter', value: 3280, status: 'Em trânsito', date: '19 jul' },
   { id: '#1049', projectId: 'parque-das-flores', item: 'Areia média · 12 m³', supplier: 'Porto Areia', value: 2160, status: 'Pendente', date: '19 jul' },
